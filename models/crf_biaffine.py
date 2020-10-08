@@ -11,19 +11,18 @@ from torch.optim.lr_scheduler import ExponentialLR
 #CRF_Biaffine
 
 def norm(input,mask):
-    with torch.no_grad():
         lens=mask.sum(-1)
         for i in range(input.size(0)):
-            w=input[i][mask[i].unsqueeze(-1) & mask[i].unsqueeze(-2)].view(lens[i], -1).clone()
+            w=input[i][:lens[i],:lens[i]].view(lens[i], lens[i])
+            #w=input[i][mazzsk[i].unsqueeze(-1) & mask[i].unsqueeze(-2)].view(lens[i], -1)
             #gamma = torch.ones(w.size(-1))
             #beta = torch.zeros(w.size(-1))
             eps = 1e-6
-            mean = w.mean(-1, keepdim=True)
-            std = w.std(-1, unbiased=True, keepdim=True)
-            w=(w - mean) / (std + eps)
-
-            #w = nn.Softmax(-1)(w)
-            input[i, 0:w.size(0), 0:w.size(1)] = w
+            with torch.no_grad():
+                mean = w.mean(-1, keepdim=True)
+                std = w.std(-1, unbiased=True, keepdim=True)
+            w.sub_(mean)
+            w.div_(std+eps)
 
 class CRF_Biaffine(nn.Module):
     def __init__(self,word_embed,tag_embed,args):

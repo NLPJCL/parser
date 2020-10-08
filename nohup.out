@@ -1,0 +1,24 @@
+data/ptb/train.conllx有39832个句子
+train中共有44393个词
+train中共有46个标签
+载入词嵌入文件后共有418765个词
+data/ptb/train.conllx有39832个句子
+data/ptb/dev.conllx有1700个句子
+data/ptb/test.conllx有2416个句子
+cuda:5
+Epoch:1/100
+Dev:
+Traceback (most recent call last):
+  File "run.py", line 89, in <module>
+    net.fit(config,train_loader,dev_loader,test_loader,f,device)
+  File "/data2/jcli/data2/jcli/parser/models/tag_biaffine.py", line 216, in fit
+    dev_loss, dev_uas = self.evaluate(dev_loader)
+  File "/data2/jcli/data2/jcli/parser/models/tag_biaffine.py", line 169, in evaluate
+    arc_preds = self.decode(s_arc, mask)
+  File "/data2/jcli/data2/jcli/parser/models/tag_biaffine.py", line 154, in decode
+    arc_preds = mst(s_arc, mask)
+  File "/data2/jcli/data2/jcli/parser/utils/alg.py", line 281, in mst
+    tree = chuliu_edmonds(s)
+  File "/data2/jcli/data2/jcli/parser/utils/alg.py", line 173, in chuliu_edmonds
+    noncycle=torch.where(noncycle.gt(0))[0]
+TypeError: where() missing 2 required positional argument: "input", "other"

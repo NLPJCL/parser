@@ -3,78 +3,78 @@ import torch
 from datetime import datetime, timedelta
 
 # an Embedding module containing 10 tensors of size 3
-'''
-x=torch.ones(2,2,2)
 
-mask=torch.tensor([-1,0,1,2])
-mask=mask.view((2,1,2))
-
-mask=mask.ge(0)
-print(mask)
-s=x.masked_fill_(mask,5)
-
-print(s)
-
-
-'''
-'''
-y=torch.ones(50,26,26)
-
-print(y[0][:5,:5].size())
-'''
-'''
-a=torch.randn(2,3,3)
-print(a)
-print(a.diagonal(0,-2,-1))
-print(a.diagonal(0,1,2))
-'''
-
-'''
-s=torch.tensor([[True,False],
-                [False,True]])
-print(s)
-print(~s)
-'''
-
-'''
-s=torch.arange(10).view(2,5)
-
-print(s[torch.tensor([0,1]),torch.tensor([0,2])])
-print(s)
-
-'''
-
-'''
-t = torch.tensor([[1,2],[3,4]])
-print(torch.gather(t, 1, torch.tensor([[0,0],[1,0]])))
-'''
-#(0,0)(0,0)(1,1)(1,0)
-'''
-print(torch.gather(t, 0, torch.tensor([[0,0],[1,0]])))
-#(0,0)(0,1)(1,0)(0,1)
-
-'''
-
-'''
-s=torch.Tensor([[1,2],[3,4]])
-
-print(s.new_tensor(0))
-print(s.new_tensor(0).long())
-
-
-mask=s.index_fill(1,s.new_tensor(1).long(),1)
-print(mask)
-
-'''
-
+def norm(input,mask):
+        lens=mask.sum(-1)
+        for i in range(input.size(0)):
+            w=input[i][:lens[i],:lens[i]].view(lens[i], lens[i])
+            #w=input[i][mazzsk[i].unsqueeze(-1) & mask[i].unsqueeze(-2)].view(lens[i], -1)
+            #gamma = torch.ones(w.size(-1))
+            #beta = torch.zeros(w.size(-1))
+            eps = 1e-6
+            mean = w.mean(-1, keepdim=True)
+            std = w.std(-1, unbiased=True, keepdim=True)
+            w.sub_(mean)
+            w.div_(std+eps)
+            #w=(w - mean) / (std + eps)
+            #w = nn.Softmax(-1)(w)
+            #input[i, 0:w.size(0), 0:w.size(1)].copy_(w)
 ##print(torch.finfo().tiny)
-score=torch.ones(4,4,4)
 
-mask_=torch.Tensor([ [True,True,True,False],
-                    [True,True,True,False],
-                    [True,True,True,False],
+
+
+'''
+input=torch.arange(2*3*3).view(2,3,3).float()
+
+mask=torch.Tensor([[True,True,True],
+                  [True,True,False]]).bool()
+norm(input,mask)
+
+print(input)
+'''
+
+
+x = torch.tensor([[1., -1.], [1., 1.]], requires_grad=True)
+
+w=x[0,:]
+
+print(w._version)
+z=w.std(-1, unbiased=True, keepdim=True)
+print(w._version)
+
+'''
+out = x.pow(2)
+
+w=out[0,:]
+w.add_(1)
+
+print(out)
+
+out =out.pow(2)
+
+print(out)
+print(out.is_leaf)
+out=out.sum()
+print(out)
+out.backward()	
+print(x.grad)
+'''
+
+'''
+s_arc=torch.ones(4,4,4)
+
+mask=torch.Tensor([ [True,True,True,False],
+                    [True,True,False,False],
+                    [True,True,False,False],
                     [True,True,True,False]]).bool()
 
+s_arc.masked_fill_(~mask.unsqueeze(1), float('-inf'))#把列pad的地方补为-inf，为了不让计算loss的时候带入，而行，因为mask的出现并不会出现。
+
+
+print(s_arc)
+'''
+
+'''
 mask_[:,0]=0
 w=mask_.unsqueeze(-1) & mask_.unsqueeze(-2)
 w.index_fill_(2,score.new_tensor(0).long(),1)
@@ -85,7 +85,7 @@ score = score.masked_fill(~w,float('-inf'))
 #score = score.masked_fill(~(mask_.unsqueeze(-1) & mask_.unsqueeze(-2)), float('-inf'))#(为了把填充的部分的分数抹掉)
 
 print(score)
-
+'''
 
 '''
 t=mask_.unsqueeze(1)

@@ -98,6 +98,7 @@ class MatrixTree(nn.Module):
         D = torch.zeros_like(A)
         D.diagonal(0, 1, 2).copy_(A.sum(-1))
         # Laplacian matrix
+        
         L = nn.init.eye_(torch.empty_like(A[0])).repeat(batch_size, 1, 1)#构造每一个句子的对角线都为1的一个batch。
 
         L = L.masked_scatter_(mask.unsqueeze(-1), (D - A)[mask])#在mask为真的地方，赋值D-A的值。

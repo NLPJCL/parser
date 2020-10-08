@@ -6,7 +6,7 @@ import torch.optim as optim
 from torch.nn.utils.rnn import pack_padded_sequence,pad_packed_sequence
 from utils import mst
 from torch.optim.lr_scheduler import ExponentialLR
-
+from torch import autograd
 
 '''
 def norm(input,mask,eps = 1e-6):
@@ -21,20 +21,19 @@ def norm(input,mask,eps = 1e-6):
             input[i,0:w.size(0),0:w.size(1)]=w
             
 '''
-
 def norm(input,mask):
-    with torch.no_grad():
         lens=mask.sum(-1)
         for i in range(input.size(0)):
-            w=input[i][(mask[i].unsqueeze(-1) & mask[i].unsqueeze(-2))].view(lens[i], -1).clone()
+            w=input[i][:lens[i],:lens[i]].view(lens[i], lens[i])
+            #w=input[i][mazzsk[i].unsqueeze(-1) & mask[i].unsqueeze(-2)].view(lens[i], -1)
             #gamma = torch.ones(w.size(-1))
             #beta = torch.zeros(w.size(-1))
             eps = 1e-6
-            mean = w.mean(-1, keepdim=True)
-            std = w.std(-1, unbiased=False, keepdim=True)
-            w=(w - mean) / (std + eps)
-            #w = nn.Softmax(-1)(w)
-            input[i, 0:w.size(0), 0:w.size(1)] = w
+            with torch.no_grad():
+                mean = w.mean(-1, keepdim=True)
+                std = w.std(-1, unbiased=True, keepdim=True)
+            w.sub_(mean)
+            w.div_(std+eps)
 
 class Tag_Biaffine(nn.Module):
     def __init__(self,word_embed,tag_embed,args):
@@ -79,8 +78,8 @@ class Tag_Biaffine(nn.Module):
         #[batch_size,seq_len,50]
         feat_embed=self.tag_embed(feats)
         #对输入层dropout
-        word_embed=self.dropout_input(word_embed)
-        feat_embed=self.dropout_input(feat_embed)
+        #word_embed=self.dropout_input(word_embed)
+        #feat_embed=self.dropout_input(feat_embed)
 
         #[batch_size,seq_len,150]
         embed = torch.cat((word_embed, feat_embed), -1)
@@ -131,15 +130,14 @@ class Tag_Biaffine(nn.Module):
             #mask[0,:] = False
             # 前向计算。
             s_arc = self.forward(words, feats)
-
-            #norm(s_arc,mask)
-
+            #print(s_arc.is_leaf)
+            norm(s_arc,mask)
             # ignore the first token of each sentence
             mask[:, 0] = False
 
             loss=self.loss(s_arc,arcs,mask)
 
-            # 计算梯度
+                # 计算梯度
             loss.backward()
 
             nn.utils.clip_grad_norm_(self.parameters(), 5.0)
@@ -163,8 +161,10 @@ class Tag_Biaffine(nn.Module):
         for words, feats, arcs, rels,lens in loader:
             mask = words.ne(0)
             # ignore the first token of each sentence
-            mask[:, 0] = 0
             s_arc= self.forward(words, feats)
+            norm(s_arc,mask)
+
+            mask[:, 0] = 0
             loss = self.loss(s_arc, arcs, mask)
             arc_preds = self.decode(s_arc, mask)
             total_loss += loss.item()
