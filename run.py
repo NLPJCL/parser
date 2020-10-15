@@ -17,8 +17,9 @@ def collate_fn(data):
     arc=torch.stack(arc)[:,:max_len]
     label=torch.stack(label)[:,:max_len]
     lens = torch.tensor(lens)
-
     return sen,tag,arc,label,lens
+
+
 def collate_fn_cuda(data):
     # 对指定的batchsize数据按照长度大小进行排序。
     sen, tag,arc,label,lens = zip(
@@ -52,13 +53,16 @@ if __name__=='__main__':
     else:
         print("np crf parser")
         config=config.config["npcrf_biaffine"]
-    dataset=Net_Data(config.ftrain,config.fembed,config.n_embed,config.n_tag_embed)
+
+    dataset=Net_Data(config)
     trainset=dataset.load_file(config.ftrain)
     devset=dataset.load_file(config.fdev)
     testset=dataset.load_file(config.ftest)
 
+    device=torch.device('cpu')
+    
     if config.use_gpu==True:
-            device = torch.device("cuda:5" if torch.cuda.is_available() else "cpu")
+            device = torch.device("cuda:6" if torch.cuda.is_available() else "cpu")
             print(device)
     train_loader = DataLoader(dataset=trainset,
                              batch_size=config.batch_size,
@@ -75,14 +79,13 @@ if __name__=='__main__':
                              shuffle=True,
                              collate_fn=collate_fn_cuda  if  config.use_gpu else collate_fn)
 
-    file_nema="np_partial_result_norm_unbias.txt"
+    file_nema="new_result.txt"
     f=open(file_nema,'w')
     if (args.model=='tag_biaffine'):
-        net=Tag_Biaffine(dataset.word_embed,dataset.tag_embed,config)
+        net=Tag_Biaffine(dataset.word_embed,dataset.n_feats,config)
     else:
         print('npcrf')
-        net=CRF_Biaffine(dataset.word_embed,dataset.tag_embed,config)
-
+        net=CRF_Biaffine(dataset.word_embed,dataset.n_feats,config)
 
     if config.use_gpu==True:
         net.to(device)

@@ -4,14 +4,23 @@ from torch.utils.data.dataset import TensorDataset
 from torch.nn.utils.rnn import pad_sequence
 
 class Net_Data():
-    def __init__(self,train_file,embedding_file,n_embed,n_tag_embed):
+    def __init__(self,config,fix_len=20):
+        self.config=config
         self.wdict = {}  # word to id
         self.tag={} # tag to id
         self.label={}
+        self.char={}
         # 加载词表和标签表
-        self.load_word_tag_label(train_file)
+        self.load_word_tag_label(config.ftrain)
+        self.load_embedding(config.fembed,config.n_embed,config.n_feat_embed)
+        self.fix_len=fix_len
+        if config.feat=='char':
+            self.n_feats=len(self.char)
+        else:
+            self.n_feats=len(self.tag)
 
-        self.load_embedding(embedding_file,n_embed,n_tag_embed)
+
+
        # self.label_num = len(self.label)
 
     def load_embedding(self,embedding_file,n_embed,n_tag_embed):
@@ -27,7 +36,6 @@ class Net_Data():
                     embed_indexs.append(len(self.wdict))
                     self.wdict[word_value[0]]=len(self.wdict)
                 embed.append(list(map(float,word_value[1:])))
-
         embed=torch.tensor(embed,dtype=torch.float)
         #创建embed，然后随机初始化。
         self.word_embed=torch.Tensor(len(self.wdict),n_embed)
@@ -45,16 +53,19 @@ class Net_Data():
 
     #加载文件
     def read_file(self,filename):
-        sentences, tags,arcs,labels= [], [],[],[]
-        sentence,tag,arc,label=[],[],[],[]
+        sentences, tags,chars,arcs,labels= [], [],[],[],[]
+        sentence,tag,char,arc,label=[],[],[],[],[]
         with open(filename, 'r', encoding='utf-8') as fin:
             for line in fin:
                 if line=='\n':
                     sentences.append(sentence)
                     tags.append(tag)
+                    chars.append(char)
                     arcs.append(arc)
                     labels.append(label)
+                    
                     sentence=[]
+                    char=[]
                     tag=[]
                     arc=[]
                     label=[]
@@ -62,23 +73,31 @@ class Net_Data():
                 line_lst = line.strip().split()
                 sentence.append(line_lst[1])  # 分词成列表
                 tag.append(line_lst[3])
+                char.append([char_ for char_ in line_lst[1]])
                 arc.append(int(line_lst[6]))#给其把str转换为int
                 label.append(line_lst[7])
 
         print("%s有%d个句子"%(filename,len(sentences)))
-        return sentences, tags,arcs,labels
+        return sentences, tags,chars,arcs,labels
 
     #生成词表
     def load_word_tag_label(self,train_file):
-        sentences,tags,_,labels=self.read_file(train_file)
+        sentences,tags,chars,_,labels=self.read_file(train_file)
         # 添加未知词和空格词
         self.wdict['<PAD>']=len(self.wdict)
         self.wdict['<BLANK>']=len(self.wdict)
         self.wdict['<UNK>']=len(self.wdict)
         self.wdict['<BOS>']=len(self.wdict)
 
+        self.tag['<PAD>']=len(self.tag)
         self.tag['<BOS>']=len(self.tag)
+
+        self.label['<PAD>']=len(self.label)
         self.label['<BOS>']=len(self.label)
+
+        self.char['<PAD>']=len(self.char)
+        self.char['<UNK>']=len(self.char)
+        self.char['<BOS>']=len(self.char)
 
         #加载词和词性
         for i in range(len(sentences)):
@@ -90,17 +109,25 @@ class Net_Data():
                 if labels[i][j] not in self.label:
                     self.label[labels[i][j]]=len(self.label)
 
+                for k in range(len(chars[i][j])):
+                    if chars[i][j][k] not in self.char:
+                        self.char[chars[i][j][k]]=len(self.char)
+
         print("train中共有%d个词"%(len(self.wdict)))
         print("train中共有%d个标签"%(len(self.tag)))
+        print('train中共有%d个字'%(len(self.char)))
+
     def load_file(self,file_name):
-        sentences, tags, arcs, labels=self.read_file(file_name)
+        sentences, tags,chars,arcs, labels=self.read_file(file_name)
         all_sen=[]
         all_tag=[]
+        all_char=[]
         all_arc=[]
         all_label=[]
         lens=[]
-        for sen,tag,arc,label in zip(sentences,tags,arcs,labels):
+        for sen,tag,char,arc,label in zip(sentences,tags,chars,arcs,labels):
             x,y=[self.wdict['<BOS>']],[self.tag['<BOS>']]
+            z=[[self.char['<BOS>'] for q in range(self.fix_len)]]
             new_arc=[len(sen)+1]+arc
             for i in range(len(sen)):
                 if sen[i] in self.wdict:
@@ -108,8 +135,21 @@ class Net_Data():
                 else:
                     x.append(self.wdict['<UNK>'])
                 y.append(self.tag[tag[i]])
+                char_idx=[]
+                for j in range(20):
+                    if j<len(char[i]):
+                        if char[i][j] in self.char:
+                            char_idx.append(self.char[char[i][j]])
+                        else:
+                            char_idx.append(self.char['<UNK>'])
+                    else:
+                        char_idx.append(0)
+                z.append(char_idx)
+
             all_sen.append(torch.tensor(x,dtype=torch.long))
             all_tag.append(torch.tensor(y,dtype=torch.long))
+            all_char.append(torch.tensor(z,dtype=torch.long))
+
             all_arc.append(torch.tensor(new_arc,dtype=torch.long))
             label=[self.label['<BOS>']]+[self.label[lab] for lab in label]
             all_label.append(torch.tensor(label, dtype=torch.long))
@@ -117,8 +157,13 @@ class Net_Data():
 
         all_sen=pad_sequence(all_sen,True,self.wdict['<PAD>'])
         all_tag=pad_sequence(all_tag,True,self.wdict['<PAD>'])
+        all_char=pad_sequence(all_char,True,self.char['<PAD>'])
+        
         all_arc=pad_sequence(all_arc,True,self.wdict['<PAD>'])
         all_label=pad_sequence(all_label,True,self.wdict['<PAD>'])
         lens=torch.tensor(lens)
-        data=TensorDataset(all_sen,all_tag,all_arc,all_label,lens)
+        if self.config.feat=='tag':
+            data=TensorDataset(all_sen,all_tag,all_arc,all_label,lens)
+        else:
+            data=TensorDataset(all_sen,all_char,all_arc,all_label,lens)
         return data

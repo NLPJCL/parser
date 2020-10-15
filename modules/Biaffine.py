@@ -14,7 +14,6 @@ class Biaffine(nn.Module):
         nn.init.zeros_(self.weight)
     def forward(self,x,y):
         '''
-
         :param  x:mlp_d [batch_size, seq_len, n_in]
         :param  y:mlp_h [batch_size, seq_len, n_in]
         :return:s:[batch_size, n_out, seq_len, seq_len]

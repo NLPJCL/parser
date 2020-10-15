@@ -25,9 +25,10 @@ class TAG_BIAFFINE_Config(Config):
     #
     batch_size=50
 
+    feat='char'
     #词嵌入
     n_embed =100
-    n_tag_embed =50
+    n_feat_embed =100
 
  #   mix_dropout = .0,
  #   embed_dropout = .33,
@@ -47,15 +48,18 @@ class TAG_BIAFFINE_Config(Config):
 
 
 class NPCRF_BIAFFINE_Config(Config):
-
+    
     ftrain='data/codt-banjiao/partial/train.conll'
     fdev='data/codt-banjiao/partial/dev.conll'
     ftest='data/codt-banjiao/partial/test.conll'
     fembed='data/embed.txt'
+    
     partial=True
+    feat='char'
 
+
+    #非投影弧的全标注数据
     '''
-    非投影弧的全标注数据
     ftrain = 'data/ptb/train.conllx'
     fdev = 'data/ptb/dev.conllx'
     ftest = 'data/ptb/test.conllx'
@@ -64,11 +68,12 @@ class NPCRF_BIAFFINE_Config(Config):
     #
     use_gpu=True
     #
-    batch_size=50
-
+    batch_size=1
+    
+    feat='char'
     #词嵌入
     n_embed =100
-    n_tag_embed =50
+    n_feat_embed =100
 
  #   mix_dropout = .0,
  #   embed_dropout = .33,
@@ -80,6 +85,7 @@ class NPCRF_BIAFFINE_Config(Config):
     n_mlp_rel = 100
 
     mlp_dropout =0.33
+
     '''
     feat_pad_index = 0,
     pad_index = 0,

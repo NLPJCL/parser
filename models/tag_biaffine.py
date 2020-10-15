@@ -1,12 +1,14 @@
 from datetime import datetime, timedelta
 import torch
 import torch.nn as nn
-from modules import Biaffine
 import torch.optim as optim
 from torch.nn.utils.rnn import pack_padded_sequence,pad_packed_sequence
 from utils import mst
 from torch.optim.lr_scheduler import ExponentialLR
 from torch import autograd
+from modules import Biaffine,MatrixTree,Norm,CharLSTM
+
+
 
 '''
 def norm(input,mask,eps = 1e-6):
@@ -21,27 +23,23 @@ def norm(input,mask,eps = 1e-6):
             input[i,0:w.size(0),0:w.size(1)]=w
             
 '''
-def norm(input,mask):
-        lens=mask.sum(-1)
-        for i in range(input.size(0)):
-            w=input[i][:lens[i],:lens[i]].view(lens[i], lens[i])
-            #w=input[i][mazzsk[i].unsqueeze(-1) & mask[i].unsqueeze(-2)].view(lens[i], -1)
-            #gamma = torch.ones(w.size(-1))
-            #beta = torch.zeros(w.size(-1))
-            eps = 1e-6
-            with torch.no_grad():
-                mean = w.mean(-1, keepdim=True)
-                std = w.std(-1, unbiased=True, keepdim=True)
-            w.sub_(mean)
-            w.div_(std+eps)
 
 class Tag_Biaffine(nn.Module):
-    def __init__(self,word_embed,tag_embed,args):
+    def __init__(self,word_embed,n_feats,args,n_char_embed=50):
         super(Tag_Biaffine, self).__init__()
         self.word_embed=nn.Embedding.from_pretrained(word_embed,False)
-        self.tag_embed=nn.Embedding.from_pretrained(tag_embed,False)
+        if args.feat=='tag':
+            #self.feat_embed=nn.Embedding.from_pretrained(tag_embed,False)
+            self.feat_embed=nn.Embedding(num_embeddings=n_feats,
+                                           embedding_dim=n_char_embed)
+        elif args.feat=='char':
+            print(5)
+            self.feat_embed=CharLSTM(n_chars=n_feats,
+                                     n_embed=50,
+                                     n_out=100,
+                                     pad_index=0)
         #lstm层
-        self.lstm=nn.LSTM(input_size=args.n_embed+args.n_tag_embed,
+        self.lstm=nn.LSTM(input_size=args.n_embed+args.n_feat_embed,
                           hidden_size=args.n_lstm_hidden,
                           num_layers=args.n_lstm_layers,
                           bidirectional=True)
@@ -52,14 +50,17 @@ class Tag_Biaffine(nn.Module):
         self.mlp_arc_h = nn.Linear(args.n_lstm_hidden * 2,
                              args.n_mlp_arc)
         #数据归一化层
-        self.layer_norm=torch.nn.LayerNorm(args.n_embed+args.n_tag_embed)
-
-        #self.layer_norm_d=torch.nn.LayerNorm(args.n_mlp_arc)
         
-        #self.layer_norm_h=torch.nn.LayerNorm(args.n_mlp_arc)
+        #self.layer_norm=torch.nn.LayerNorm(args.n_embed+args.n_tag_embed)
+
+        self.layer_norm_d=torch.nn.LayerNorm(args.n_mlp_arc)
+        
+        self.layer_norm_h=torch.nn.LayerNorm(args.n_mlp_arc)
 
         #biaffine层
         self.arc_attn=Biaffine(n_input=args.n_mlp_arc,n_output=1)
+
+        self.norm=Norm()
         #drop层
         self.dropout_input= nn.Dropout(0.1)
         self.dropout_lstm=nn.Dropout(0.4)
@@ -76,15 +77,15 @@ class Tag_Biaffine(nn.Module):
         #[batch_size,seq_len,100]
         word_embed=self.word_embed(words)
         #[batch_size,seq_len,50]
-        feat_embed=self.tag_embed(feats)
+        feat_embed=self.feat_embed(feats)
         #对输入层dropout
         #word_embed=self.dropout_input(word_embed)
         #feat_embed=self.dropout_input(feat_embed)
 
-        #[batch_size,seq_len,150]
+        #[batch_size,seq_len,200]
         embed = torch.cat((word_embed, feat_embed), -1)
 
-        x=self.layer_norm(embed)
+        #x=self.layer_norm(embed)
 
         x = pack_padded_sequence(embed, lens, True, False)
         x, _ = self.lstm(x)
@@ -131,17 +132,18 @@ class Tag_Biaffine(nn.Module):
             # 前向计算。
             s_arc = self.forward(words, feats)
             #print(s_arc.is_leaf)
-            norm(s_arc,mask)
+            #lens=torch.sqrt(mask.sum(-1).unsqueeze(-1).unsqueeze(-1).float())
+
+            #s_arc=s_arc/lens
+            with torch.no_grad():
+                s_arc=self.norm(s_arc,mask)
             # ignore the first token of each sentence
             mask[:, 0] = False
 
             loss=self.loss(s_arc,arcs,mask)
-
-                # 计算梯度
+            # 计算梯度
             loss.backward()
-
             nn.utils.clip_grad_norm_(self.parameters(), 5.0)
-
             # 更新参数
             self.optimizer.step()
             self.scheduler.step()
@@ -162,8 +164,8 @@ class Tag_Biaffine(nn.Module):
             mask = words.ne(0)
             # ignore the first token of each sentence
             s_arc= self.forward(words, feats)
-            norm(s_arc,mask)
-
+            #lens=torch.sqrt(mask.sum(-1).unsqueeze(-1).unsqueeze(-1).float())
+            #s_arc=s_arc/lens
             mask[:, 0] = 0
             loss = self.loss(s_arc, arcs, mask)
             arc_preds = self.decode(s_arc, mask)
