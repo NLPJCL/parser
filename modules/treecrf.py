@@ -121,13 +121,6 @@ class MatrixTree(nn.Module):
         #with torch.no_grad():
         #z=L[:,1:,1:].slogdet()[1]
 
-        '''
-        z=L.detach()
-        z=z[:, 1:, 1:].det()
-        z_mask=z.ne(0)
-        
-        logZ=(L[:,1:,1:].slogdet()[1][z_mask]+m[z_mask]*lens[z_mask]).sum()
-        '''
         #random_mask=L.new_ones(L.size(0)).bernoulli_(0.8).ne(0)
         #random_mask
         return L,m,lens
